@@ -1,5 +1,5 @@
-theta = numpyro.sample(                            #Truncated normal distributions of priors in special units. See NOTE for detailed conversion,
-        "theta",                                       #but 1 units = 1e15 cm-3. Consider each parameters conversion with this in mind (Auger = cm6s-1)
+theta = numpyro.sample(                           
+        "theta",                                       
         TruncatedNormal(
             low   = jnp.array([-7.00, -2.50, -3.95, -3.00, -4.00, N0 - fac[2] * jnp.log10(4.0)]),
             high  = jnp.array([-4.90,  0.00, -2.00, -1.00, -1.00, N0 - fac[0] * jnp.log10(4.0)]),
@@ -10,4 +10,14 @@ theta = numpyro.sample(                            #Truncated normal distributio
 
 
 #Truncated normal distributions of priors in special units. See NOTE for detailed conversion,
-#but 1 units = 1e15 cm-3. Consider each parameters conversion with this in mind (Auger = cm6s-1)
+#but 1 units = 1e15 cm3. Consider each parameters conversion with this in mind (Auger = cm6s-1)
+
+An example of an Auger rate constant (from https://doi.org/10.17863/CAM.6537)
+
+a = ~ 1e-28 cm6s-1 = 1e-37 cm-3ns-1
+
+Divide by our constant, 1e15 cm-3, but it has to be twice to match the units
+
+1e-37 cm6ns-1 / (1e15 cm-3 *1e15 cm-3) = 1e-7 ns-1
+Take the log, as we want to get these all in closer orders of magnitude
+log(1e-7) = -7
