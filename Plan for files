@@ -1,0 +1,14 @@
+What do I need?
+
+File 1 - Models
+
+- Define the model
+- Solve the differential equations
+- Generate the signals
+- Standardise and normalise the data
+
+File 2 - MCMC
+- Define the Bayesian inference
+- Define the MCMC
+- Run mcmc
+- Save mcmc results
