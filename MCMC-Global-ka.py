@@ -10,11 +10,11 @@ import numpyro                                            #Bayesian inference pa
 from numpyro.infer import MCMC, NUTS, Predictive          #MCMC with NUTS to make it Hamiltonian MC
 from numpyro.distributions import TruncatedNormal, Normal #To define prior distributions
 
-eidx = 66 #no. points you eventually want (ish) - look at data and make decision
+eidx = 66                             #no. points you eventually want (ish) - look at data and make decision
 num_chains = 10                       #number of chains to run (number of cores to use) - might need to run this on linux
 numpyro.set_host_device_count(12)     #number of cores on computer
 
-# Define step size - defining x from confocal 
+# Define step size - defining x from confocal probably will get rid of this down to next comment
 start_step = 1
 end_step = 250
 
@@ -26,16 +26,17 @@ subsample_indices = np.cumsum(step_sizes) - step_sizes[0]
 subsample_indices = np.minimum(subsample_indices, len_arr-1)
 subsample_indices = np.asarray(list(set(subsample_indices)))
 subsample_indices.sort()
+#Down to here
 
 #Set all floats to 64 bit
 jax.config.update("jax_enable_x64", True) #Needed for precision in jax - never touch
 
-ydatas = process_exp_data(bin_amount = 1)
+ydatas = process_exp_data(bin_amount = 1) # Alan's own processing step
 
 #warm up the JIT
-TRPL_HERTZ_LOW(jnp.array([0.0, 1e-15, 1e-18, 1e-3, 0.0, 1e14, 0.0]), 10.0)              #These are from the funcs_ub_globalfit file
-TRPL_HERTZ_HIGH(jnp.array([0.0, 1e-15, 1e-18, 1e-3, 0.0, 1e14, 0.0]), 10.0)             #standardises confocal data into numpy arrays
-standardise(TRPL_HERTZ_LOW(jnp.array([0.0, 1e-15, 1e-18, 1e-3, 0.0, 1e14, 0.0]), 10.0)) #1 D signal - we tell it time elsewhere
+TRPL_HERTZ_LOW(jnp.array([0.0, 1e-15, 1e-18, 1e-3, 0.0, 1e14, 0.0]), 10.0)              #These are from the funcs_ub_globalfit file -  
+TRPL_HERTZ_HIGH(jnp.array([0.0, 1e-15, 1e-18, 1e-3, 0.0, 1e14, 0.0]), 10.0)             #these numbers dont mean anything, it is literally to get
+standardise(TRPL_HERTZ_LOW(jnp.array([0.0, 1e-15, 1e-18, 1e-3, 0.0, 1e14, 0.0]), 10.0)) #the JIT warmed up with numbers
 
 #Bayesian model
 def model(dev, ydata = None):
@@ -45,6 +46,9 @@ def model(dev, ydata = None):
 
     Parameters
     ----------
+    dev: float
+        stdev chosen to be less than the bounds of the truncated guassians of priors (fac and theta, defined below)
+    
     y0: float
         Initial counts in the TRPL signal.
 
@@ -55,21 +59,9 @@ def model(dev, ydata = None):
 
     std_dev = dev
 
-    #std_dev2 = 0.5
-    #N0 = numpyro.sample("N0s", TruncatedNormal(low = 1.6, high = 1.9, loc = 1.7, scale = std_dev2))
     N0 = 1.75
 
-    # fac = numpyro.sample(
-    #     "fac",
-    #     TruncatedNormal(
-    #         low   = jnp.array([0.850, 1.950, 2.950, 3.500, 4.000]),
-    #         high  = jnp.array([1.250, 2.050, 3.150, 5.900, 6.000]),
-    #         loc   = jnp.array([1.000, 2.000, 3.000, 4.000, 5.000]),
-    #         scale = jnp.array([0.100, 0.100, 0.100, 0.500, 0.500]),
-    #     ),
-    # )
-
-    fac = numpyro.sample(
+    fac = numpyro.sample(                                 # Creates a truncated normal that we use to create a distribution for the N0s later
         "fac",
         TruncatedNormal(
             low   = jnp.array([0.950, 1.950, 2.950]),
@@ -77,10 +69,10 @@ def model(dev, ydata = None):
             loc   = jnp.array([1.000, 2.000, 3.000]),
             scale = jnp.array([0.001, 0.001, 0.001]),
         ),
-    ) # alans experiment
+    ) 
 
-    theta = numpyro.sample(
-        "theta",
+    theta = numpyro.sample(                            #Truncated normal distributions of priors in special units. See NOTE for detailed conversion,
+        "theta",                                       #but 1 units = 1e15 cm-3. Consider each parameters conversion with this in mind (Auger = cm6s-1)
         TruncatedNormal(
             low   = jnp.array([-7.00, -2.50, -3.95, -3.00, -4.00, N0 - fac[2] * jnp.log10(4.0)]),
             high  = jnp.array([-4.90,  0.00, -2.00, -1.00, -1.00, N0 - fac[0] * jnp.log10(4.0)]),
