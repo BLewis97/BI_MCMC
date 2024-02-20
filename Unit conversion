@@ -18,6 +18,16 @@ a = ~ 1e-28 cm6s-1 = 1e-37 cm-3ns-1
 
 Divide by our constant, 1e15 cm-3, but it has to be twice to match the units
 
-1e-37 cm6ns-1 / (1e15 cm-3 *1e15 cm-3) = 1e-7 ns-1
+1e-37 cm6ns-1 * 1e15 cm-3 * 1e15 cm-3 = 1e-7 ns-1
 Take the log, as we want to get these all in closer orders of magnitude
 log(1e-7) = -7
+    
+    ka    = theta[0]
+    kt    = theta[1]
+    kb    = theta[2]
+    kdt   = theta[3]
+    kdp   = theta[4]
+    NT    = theta[5]
+
+For kb, -3.95 => 1e-4
+1e-19 cm3s-1
