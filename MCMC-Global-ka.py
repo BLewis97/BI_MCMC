@@ -155,7 +155,7 @@ mcmc = MCMC(
 #Run the MCMC with the simulated data and noise
 #ydata = np.stack((*np.log10(ydatas[:3, :60]), *np.log10(ydatas[3:, subsample_indices]))) - np.log10(ydatas.max(1))[:, None]
 
-ydata = np.log10(ydatas[3:, subsample_indices]) - np.log10(ydatas.max(1))[3:, None] # this is because after 6ns it was flat and alan didnt want to fit?
+#ydata = np.log10(ydatas[3:, subsample_indices]) - np.log10(ydatas.max(1))[3:, None] # this is because after 6ns it was flat and alan didnt want to fit?
 s_ydata, means, stds = standardise(ydata) 
 mcmc.run(key1, dev = std_dev, ydata = s_ydata, extra_fields=["num_steps", "energy"]) #runs mcmc
 
