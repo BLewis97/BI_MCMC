@@ -393,7 +393,7 @@ def normalise(x):
     """
     return x/x.max(-1, keepdims=True)
 
-def process_exp_data(bin_amount = 100, final_time = 32000):
+def process_exp_data(bin_amount = 100, final_time = 32000): # this is to process alans data from the confocal, where you may want to shove the ends of the tails onto the start in order to align the rises but keep array dimensions the same
     """
     Prepare the experimental data for fitting.
 
