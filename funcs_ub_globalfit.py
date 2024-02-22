@@ -7,7 +7,7 @@ import jax.numpy as jnp        #jax numpy
 jax.config.update("jax_enable_x64", True)
 
 #Rate equations charge carrier dynamics
-def HERTZ(t, y, args):
+def HERTZ(y, args):
     """
 
     Rate equations for a mixture of the models as per 10.1002/adfm.202004312
@@ -45,10 +45,13 @@ def HERTZ(t, y, args):
 
 #JIT compiled function to solve the ODE
 @jax.jit #JIT = 'Just in time' - takes python code and translates to computer 1s and 0s
-def solve_TRPL_HERTZ_LOW(ka, kt, kb, kdt, kdp, NT, p0, N0, NTp, N0h):
+def solve_TRPL_HERTZ(t, ka, kt, kb, kdt, kdp, NT, p0, N0, NTp, N0h):
     """
-    
+    Formerly solve_TRPL_HERTZ_LOW
     Solve the ODEs for the Hertz model.
+    Solves for electron concentration in conduction band
+    Solves for electron concentration in traps
+    Solves for hole concentration in valence band
 
     Parameters
     ----------
@@ -90,23 +93,23 @@ def solve_TRPL_HERTZ_LOW(ka, kt, kb, kdt, kdp, NT, p0, N0, NTp, N0h):
     """
 
     #Define equations
-    terms = diffrax.ODETerm(HERTZ)
+    terms = diffrax.ODETerm(HERTZ) #Ordinary Differential Term - Input Model here
 
-    t = jnp.arange(60, dtype=jnp.float64)/10
+    #t = jnp.arange(60, dtype=jnp.float64)/10 commented out as i will put time in as an argument
     #Start and end times
-    t0 = 0.0
+    t0 = t[0] #Originally 0
     t1 = t[-1]
 
     #Initial conditions and initial time step
-    y0 = jnp.array([N0, NTp, N0h])
-    dt0 = 0.0002
+    y0 = jnp.array([N0, NTp, N0h]) 
+    dt0 = t[1]-t[0] #Originally 0.0002 - this may be more robust when feeding in new datasets
 
     #Define solver and times to save at
-    solver = diffrax.Kvaerno5()
-    saveat = diffrax.SaveAt(ts=t)
+    solver = diffrax.Kvaerno5() #Choice of numerical solver
+    saveat = diffrax.SaveAt(ts=t) #Defining time values to save at - set to t so all times
 
     #Controller for adaptive time stepping
-    stepsize_controller = diffrax.PIDController(rtol=1e-3, atol=1e-6)
+    stepsize_controller = diffrax.PIDController(rtol=1e-3, atol=1e-6) #PID controller is used to dynamically adapt step sizes to match a desired error tolerance
     
     #Solve ODEs
     sol = diffrax.diffeqsolve(
@@ -218,7 +221,7 @@ def solve_TRPL_HERTZ_HIGH(ka, kt, kb, kdt, kdp, NT, p0, N0, NTp, N0h):
 
 #Function to calculate the TRPL signal
 @jax.jit
-def TRPL_HERTZ_LOW(r, N0):
+def TRPL_HERTZ(r, N0): #Formerly TRPL_HERTZ_LOW
     """
     
     Calculate the TRPL signal for the BTD model with auger, accumulation included.
@@ -269,7 +272,7 @@ def TRPL_HERTZ_LOW(r, N0):
     """
 
     #Solve ODEs
-    sol = solve_TRPL_HERTZ_LOW(*r, N0, 0.0, N0)
+    sol = solve_TRPL_HERTZ(*r, N0, 0.0, N0) #formerly solve_TRPL_HERTZ_LOW(...)
 
     # def body_fun(_, val):
     #     return solve_TRPL_HERTZ(*r, N0 + val.ys[-1, 0], val.ys[-1, 1], N0 + val.ys[-1, 2] - r[-1])
@@ -277,7 +280,7 @@ def TRPL_HERTZ_LOW(r, N0):
     # sol = jax.lax.fori_loop(0, 10, body_fun, sol)
 
     #Calculate TRPL signal
-    sig = jnp.log10(jnp.clip(sol.ys[:, 0], a_min = 0.0)) + jnp.log10(jnp.clip(sol.ys[:, 2] + r[-1], a_min = 0.0))
+    sig = jnp.log10(jnp.clip(sol.ys[:, 0], a_min = 0.0)) + jnp.log10(jnp.clip(sol.ys[:, 2] + r[-1], a_min = 0.0)) #because the signal is in log form, this is n*p + a background
 
     #Adjust for background
     sig = sig - sig[0] #normalisation 
