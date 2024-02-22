@@ -15,3 +15,4 @@ File 2 - MCMC
 
 What do I need to do?
 Change the input of data - Alan has written it so that it inputs confocal data, which he has done pre-prep on anyway. I will write it so that you can just load a .py file with time and signal (or x and y, more generally).
+Make sure data and model are both standardised and normalised.
