@@ -10,13 +10,13 @@ theta = numpyro.sample(
 
 
 #Truncated normal distributions of priors in special units. See NOTE for detailed conversion,
-#but 1 units = 1e15 cm3. Consider each parameters conversion with this in mind (Auger = cm6s-1)
+#but 1 units = 1e15 cm-3. Consider each parameters conversion with this in mind (Auger = cm6s-1)
 
 An example of an Auger rate constant (from https://doi.org/10.17863/CAM.6537)
 
-a = ~ 1e-28 cm6s-1 = 1e-37 cm-3ns-1
+a = ~ 1e-28 cm6s-1 = 1e-37 cm6ns-1
 
-Divide by our constant, 1e15 cm-3, but it has to be twice to match the units
+Multiply by our constant, 1e15 cm-3, but it has to be twice to match the units
 
 1e-37 cm6ns-1 * 1e15 cm-3 * 1e15 cm-3 = 1e-7 ns-1
 Take the log, as we want to get these all in closer orders of magnitude
@@ -29,5 +29,22 @@ log(1e-7) = -7
     kdp   = theta[4]
     NT    = theta[5]
 
-For kb, -3.95 => 1e-4
-1e-19 cm3s-1
+For kt, -1.2 put to the power of 10 => 1e-1.2
+Divide by 1e15 cm-3
+1e-15 cm3s-1
+
+For kb, -2.3 put to the power of 10 => 1e-2.3
+Divide by 1e15 cm-3
+1e-17.3 cm3s-1
+
+For kdt, -2 put to the power of 10 => 1e-2
+Divide by 1e15 cm-3
+1e-17 cm3s-1
+
+For kdp, -2.7 put to the power of 10 => 1e-2.7
+Divide by 1e15 cm-3
+1e-17.7 cm3s-1
+
+For NT, 1 put to the power of 10 => 1e1
+Mulitply by 1e15 cm-3
+1e16 cm-3
