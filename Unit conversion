@@ -48,3 +48,7 @@ Divide by 1e15 cm-3
 For NT, 1 put to the power of 10 => 1e1
 Mulitply by 1e15 cm-3
 1e16 cm-3
+
+For Carrier Densities in cm-3,
+
+1e15, 1e16, 1e17, 1e18 = 1,2,3,4 (divide by 1e15cm-3, log10)
