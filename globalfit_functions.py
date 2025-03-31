@@ -3,42 +3,37 @@ import diffrax                 #jax-based numerical differential eq solver
 import numpy as np
 import equinox as eqx          #extension of jax
 import jax.numpy as jnp        #jax numpy
+import numpy as np
 
 jax.config.update("jax_enable_x64", True)
 
 #Rate equations charge carrier dynamics
 def Extended_Model(t, y, args):
-    """
-
-    Rate equations for a mixture of the models as per 10.1002/adfm.202004312
-    p. 2004312 (5 of 12) and 10.1039/d0cp04950f p. 28348.
-
-    Model allows for a non-constant density of traps with depopulation from these
-    traps to the valence band and detrapping to the conduction band, included Auger.
-
-    Background doping included.
-
-    Returns
-    -------
-    [f0, f1, f2]: array
-        Array of the rate equations. Dynamics for electron, trap and hole
-        concentraions.
+    dne_dt, dnt_dt, dnh_dt = y
+    ka, kt, kb, kdt, kdp, NT, p0 = args
     
-    """
-    dne_dt, dnt_dt, dnh_dt = y #Rates of change in electrons, trapped electrons and valence band holes
-    ka, kt, kb, kdt, kdp, NT, p0 = args #Input parameters
-    # Auger term
-    A   = ka * (y[0]*(y[2] + p0)**2 + (y[2] + p0)*y[0]**2) #Auger Recombination term
-    B   = kb * y[0] * (y[2] + p0)                     # Bimolecular recombination term
-    T   = kt * y[0] * (NT - y[1])                     # Trapping term
-    DT  = kdt * y[1]                                  # Detrapping term
-    DP  = kdp * y[1] * (y[2] + p0)                    # Depopulation term
-    dne_dt  = - B - A - T + DT                        # Change in electron concentration
-    dnt_dt  =   T - DP - DT                           # Change in trapped electron concentration
-    dnh_dt  = - B - A - DP                            # Change in hole concentration
+    # Add some numerical safeguards
+    y0 = jnp.maximum(y[0], 1e-10)  # Prevent negative/zero values
+    y1 = jnp.maximum(y[1], 1e-10)
+    y2 = jnp.maximum(y[2], 1e-10)
     
-    # Enforce the condition nt <= NT
-    dnt_dt = jnp.where(y[1] <= NT, dnt_dt, 0)
+    # Clip very large values
+    y0 = jnp.minimum(y0, 1e20)
+    y1 = jnp.minimum(y1, 1e20)
+    y2 = jnp.minimum(y2, 1e20)
+    
+    A   = ka * (y0*(y2 + p0)**2 + (y2 + p0)*y0**2)
+    B   = kb * y0 * (y2 + p0)
+    T   = kt * y0 * (NT - y1)
+    DT  = kdt * y1
+    DP  = kdp * y1 * (y2 + p0)
+    
+    dne_dt  = - B - A - T + DT
+    dnt_dt  =   T - DP - DT
+    dnh_dt  = - B - A - DP
+    
+    # More robust constraint
+    dnt_dt = jnp.where(y1 <= NT, dnt_dt, -jnp.abs(dnt_dt))
     
     return jnp.stack([dne_dt, dnt_dt, dnh_dt])
 
@@ -128,7 +123,7 @@ def solve_TRPL_Extended_Model(t, ka, kt, kb, kdt, kdp, NT, p0, N0, NTp, N0h):
 #%%
 #Function to calculate the TRPL signal
 @jax.jit
-def TRPL_Extended_Model(t, p_cons, ka, kt, kb, kdt, kdp, NT, p0, bkr, N0): #Formerly TRPL_Extended_Model_LOW
+def TRPL_Extended_Model(t, ka, kt, kb, kdt, kdp, NT, p0, N0): 
     """
     
     Calculate the TRPL signal for the BTD model with auger, accumulation included.
@@ -187,12 +182,12 @@ def TRPL_Extended_Model(t, p_cons, ka, kt, kb, kdt, kdp, NT, p0, bkr, N0): #Form
     # sol = jax.lax.fori_loop(0, 10, body_fun, sol)
 
     #Calculate TRPL signal
-    sig = p_cons * sol.ys[:, 0] * (sol.ys[:, 2] + p0) +bkr #because the signal is in log form, this is n*p + a background
+    sig = (sol.ys[:, 0] * (sol.ys[:, 2] + p0)) #because the signal is in log form, this is n*p + a background
 
     #Adjust for background
     #sig = sig - sig[0] #normalisation 
     
-    return jnp.log10(sig)
+    return jnp.log10(sig) #- jnp.log10(sig[0]) #normalisation
 
 #%%
 #Standardise the data
@@ -234,7 +229,61 @@ def normalise(x):
     """
     return x/x.max(-1, keepdims=True)
 #%%
-def TRPL_ABC(t, n_0, p_cons, k_A, k_B, k_C, bkr):
+def TRPL_AB(t, n_0, k_A, k_B):
+    def AB_rate_equations(t, n, args):
+        """ Rate equation of the ABC model
+        
+        :param n_0: Initial concentration of the free electron
+        :param k_A: SRH Rate Constant
+        :param k_B: Bimolecular Rate Constant
+        :param k_C: Auger Rate Constant""" 
+        k_A, k_B = args
+        dne_dt = - k_A*n - k_B*n**2
+        
+        return dne_dt
+    #Solve the ordinary differential equations for the free electron concentration    
+    #Define equations
+    terms = diffrax.ODETerm(AB_rate_equations)
+
+    
+    #Start and end times
+    t0 = t[0]
+    t1 = t[-1]
+
+    #Initial conditions and initial time step
+    y0 = jnp.array([n_0])
+    dt0 = 0.0002
+
+    #Define solver and times to save at
+    solver = diffrax.Kvaerno5()
+    saveat = diffrax.SaveAt(ts=t)
+
+    #Controller for adaptive time stepping
+    stepsize_controller = diffrax.PIDController(rtol=1e-3, atol=1e-6)
+    
+    #Solve ODEs
+    sol = diffrax.diffeqsolve(
+        terms,
+        solver,
+        t0,
+        t1,
+        dt0,
+        y0,
+        args = jnp.array([k_A, k_B]),
+        saveat=saveat,
+        stepsize_controller=stepsize_controller,
+    )
+    
+    #Calculate TRPL Signal
+    
+    signal = sol.ys**2 
+    
+    signal = jnp.log10(signal)
+    
+    return signal
+
+#%%
+def TRPL_ABC(t, n_0, k_A, k_B, k_C):
     def ABC_rate_equations(t, n, args):
         """ Rate equation of the ABC model
         
@@ -281,9 +330,11 @@ def TRPL_ABC(t, n_0, p_cons, k_A, k_B, k_C, bkr):
     
     #Calculate TRPL Signal
     
-    signal = p_cons*sol.ys**2 + bkr
+    signal = sol.ys**2 
     
-    return jnp.log10(signal)
+    signal = jnp.log10(signal)
+    
+    return signal
 
 #%% Add noise
 
@@ -304,4 +355,4 @@ def add_noise(x, noise):
     x: numpy.ndarray
         The data with noise added.
     """
-    return x + jax.random.normal(jax.random.PRNGKey(0), x.shape)*noise
+    return x +- np.random.normal(0.5, noise, x.shape)
